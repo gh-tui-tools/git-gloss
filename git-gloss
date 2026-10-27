@@ -17,7 +17,7 @@ attention() {
 }
 
 gh_api() {
-  response=$(gh api "$1" 2>/dev/null)
+  response=$(gh api "$@" 2>/dev/null)
   if [[ $(echo "$response" | jq ".status" 2>/dev/null) == '"403"' ]]; then
     response=$(gh api "/rate_limit")
     reset_time=$(echo "$response" | jq ".rate.reset")
@@ -26,7 +26,7 @@ gh_api() {
     >&2 echo -n "⚠️  Attention: Hit the GitHub API rate limit. "
     >&2 echo -n "Sleeping for $seconds_to_sleep seconds. "
     sleep "$seconds_to_sleep"
-    response=$(gh api "$1" 2>/dev/null)
+    response=$(gh api "$@" 2>/dev/null)
   fi
   echo "$response"
 }
@@ -154,7 +154,7 @@ add_note() {
                     pullRequest(number: $pr) {
                             closingIssuesReferences(first: 100) {
                                     nodes {
-                                            number
+                                            url
                                     }
                             }
                     }
@@ -169,14 +169,15 @@ add_note() {
        $GIT notes remove "$short_commit_hash" 2>/dev/null
        add_note "$short_commit_hash"
     fi
-    issues=$(echo "$issues_response" | jq \
-      '.data.repository.pullRequest.closingIssuesReferences.nodes[].number' \
+    # A closing issue can be in a different repo than the PR, so use the
+    # URL GitHub gives for each issue rather than building one.
+    issues=$(echo "$issues_response" | jq -r \
+      '.data.repository.pullRequest.closingIssuesReferences.nodes[].url' \
       2>/dev/null
     )
     if [[ -n "$issues" ]]; then
       for issue in $issues; do
-        $GIT notes append --no-separator \
-          -m "Issue: https://github.com/$owner/$repo/issues/$issue" "$1"
+        $GIT notes append --no-separator -m "Issue: $issue" "$1"
       done;
     fi
     reviewer_data_file=$(mktemp)
