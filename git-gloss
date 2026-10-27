@@ -155,6 +155,9 @@ add_note() {
                             closingIssuesReferences(first: 100) {
                                     nodes {
                                             url
+                                            repository {
+                                                    isPrivate
+                                            }
                                     }
                             }
                     }
@@ -170,9 +173,11 @@ add_note() {
        add_note "$short_commit_hash"
     fi
     # A closing issue can be in a different repo than the PR, so use the
-    # URL GitHub gives for each issue rather than building one.
+    # URL GitHub gives for each issue rather than building one. And leave
+    # out issues in private repos, whose URLs most readers can't open.
     issues=$(echo "$issues_response" | jq -r \
-      '.data.repository.pullRequest.closingIssuesReferences.nodes[].url' \
+      '.data.repository.pullRequest.closingIssuesReferences.nodes[]
+        | select(.repository.isPrivate | not) | .url' \
       2>/dev/null
     )
     if [[ -n "$issues" ]]; then
